@@ -1,0 +1,98 @@
+
+#1. Identify unmatched join keys between the trades and user tables. Records in the trades table don’t have corresponding records in the user table.
+#2. Check for missing dates in the trades table, based on the close_time column, to confirm the reasons for any gaps in the date sequence.
+
+
+import pandas as pd
+import numpy as np
+from sqlalchemy import create_engine
+engine = create_engine('postgresql://candidate:NW337AkNQH76veGc@technical-test-1.cncti7m4kr9f.ap-south-1.rds.amazonaws.com:5432/technical_test')
+queryuser = """select * from users """
+df = pd.read_sql(queryuser, engine)
+querytrade = """select * from trades"""
+df_trade = pd.read_sql(querytrade, engine)
+class DataQualityChecker:
+    def __init__(self, data: pd.DataFrame):
+        self.data = data
+
+    def is_data_valid(self):
+        """Check if the dataset is not None and not empty."""
+        if self.data is None:
+            print("Dataset is None. Skipping checks.")
+            return False
+        elif self.data.empty:
+            print("Dataset is empty. Skipping checks.")
+            return False
+        return True
+    
+    def check_missing_values(self):
+        """Check for missing values in the dataset."""
+        try:
+            print("\nChecking for missing values:")
+            missing_values = self.data.isnull().sum()
+            print(missing_values)
+        except Exception as e:
+            print(f"Error checking for missing values: {e}\n")
+    
+    def check_unexpected_value(self, column_name: str, expected_value: list):
+        try:
+            print(f"\nChecking for unexpected string values in column {column_name}:")
+            unexpected_values = self.data[~self.data[column_name].isin(expected_value)]
+            if unexpected_values.empty:
+                print("All values are as expected. Passed.")
+            else:
+                print(f"Unexpected values in '{column_name}':", unexpected_values[column_name].unique())
+        except Exception as e:
+            print(f"Error checking for unexpected value: {e} \n")
+    
+    def check_unexpected_date(self, column_name: str):
+        try:
+            print(f"\nChecking for unexpected date values in column {column_name}: ")
+            self.data[column_name] = pd.to_datetime(self.data[column_name], errors = 'coerce', format='%Y-%m-%d %H:%M:%S')
+            unexpetected_date = self.data[self.data[column_name].isnull()]
+            if unexpetected_date.empty:
+                print("All dates are valid. Passed")
+            else:
+                print(f"Invalid dates found in {column_name}: \n")
+                print(invalid_dates[[column_name]])
+        
+        except Exception as e:
+            print(f"Error checking for unexpected datge value: {e}\n")
+            
+    def check_join_integrity(self, other_data: pd.DataFrame, key_columns: list, check_column: str):
+        try:
+            print("\nChecking data integrity after join:\n")
+            merged_data = pd.merge(self.data, other_data, on = key_columns, how = 'left')
+            missing_integrity = merged_data[merged_data[check_column].isnull()]
+            if missing_integrity.empty:
+                print("Integrity checking pass on columns:", key_columns)
+            else:
+                print(f"Join integrity checking failed on keys {key_columns}:\n", missing_integrity[key_columns])
+        except Exception as e:
+            print(f"Error checking for join integrity: {e} \n")
+    
+    def check_data_continuity(self, column_name: str, start_date: str, end_date: str):
+        try:
+            print(f"\nChecking data continuity from {start_date} to {end_date}:")
+            full_date_range = pd.date_range(start = start_date, end = end_date)
+            data_dates = pd.Series(self.data[column_name].unique()).sort_values()
+            missing_dates = [date for date in full_date_range if date not in data_dates.values ]
+            if missing_dates:
+                print("Missing data within the specified dates, indicating discontinuity:")
+                print(missing_dates)
+            else:
+                print("Data are continuous within the date range. Passed.")     
+        
+        except Exception as e:
+            print(f"Error checking for data continuity: {e} \n")
+
+checkerUser = DataQualityChecker(df)
+checker.check_missing_values()
+checkerTrades = DataQualityChecker(df_trade)
+checkerTrades.check_missing_values()
+checkerTrades.check_unexpected_value('cmd', [0,1])
+checkerTrades.check_unexpected_date('open_time')
+checkerTrades.check_unexpected_date('close_time')
+checkerTrades.check_join_integrity(df, ['login_hash', 'server_hash'], 'currency')
+checkerTrades.check_data_continuity( 'close_time', '2020-06-01', '2020-10-01')
+checkerTrades.check_data_continuity( 'open_time', '2020-06-01', '2020-10-01')
